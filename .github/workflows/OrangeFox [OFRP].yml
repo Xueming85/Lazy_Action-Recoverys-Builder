@@ -98,6 +98,15 @@ jobs:
         git clone ${{ github.event.inputs.DEVICE_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
+    # 设备树若缺少 omni.dependencies，构建系统会报 WARNING。
+    # 创建一个空文件可消除该警告；若设备树本身自带该文件则会被覆盖为空，注意确认。
+    - name: Create empty omni.dependencies
+      run: |
+        cd ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        touch ${{ github.event.inputs.DEVICE_PATH }}/omni.dependencies
+        echo "Created empty omni.dependencies at ${{ github.event.inputs.DEVICE_PATH }}/omni.dependencies"
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+
     - name: Clone common tree
       # 可选输入未填写时是空字符串，不是 null，必须用 != '' 判断
       if: |
@@ -120,10 +129,18 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y python2.7
         sudo ln -sf /usr/bin/python2.7 /usr/bin/python
-        curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
-        sudo python2.7 get-pip.py
         python --version
-        pip --version
+
+    # OrangeFox 7.1 基于较老 Android 版本，构建系统硬性要求 Java 1.8.x。
+    # 使用官方 setup-java Action 安装 Temurin JDK 8，避免依赖系统 apt 仓库。
+    - name: Set up JDK 8
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '8'
+
+    - name: Verify Java version
+      run: java -version
 
     - name: Building recovery
       run: |
