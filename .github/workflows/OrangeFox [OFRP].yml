@@ -1,4 +1,4 @@
-name: OrangeFox [OFRP]
+name: OrangeFox [OFRP](Personal Fix1)
 
 on:
   workflow_dispatch:
