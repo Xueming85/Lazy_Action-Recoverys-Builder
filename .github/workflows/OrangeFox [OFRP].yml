@@ -105,8 +105,12 @@ jobs:
       with:
         swap-size-gb: 12
         
-#    - name: install py-is-py2
-#      run: sudo apt-get install python-is-python2
+#   - name: install py-is-py2
+#     run: sudo apt-get install python-is-python2
+
+    - name: Fix Python 3 Syntax for roomservice
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+      run: sed -i 's/except IOError, ES.ParseError:/except (IOError, ES.ParseError):/' build/tools/roomservice.py
 
     - name: Building recovery
       run: |
