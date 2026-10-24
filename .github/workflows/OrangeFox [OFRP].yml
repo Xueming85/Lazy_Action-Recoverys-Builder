@@ -26,9 +26,15 @@ on:
       COMMON_TREE_URL:
         description: 'COMMON_TREE_URL (if no common tree, leave blank)'
         required: false
+        default: ''
+      COMMON_TREE_BRANCH:
+        description: 'COMMON_TREE_BRANCH (only used when COMMON_TREE_URL is set)'
+        required: false
+        default: 'main'
       COMMON_PATH:
         description: 'COMMON_PATH (if no common tree, leave blank)'
         required: false
+        default: ''
       DEVICE_NAME:
         description: 'DEVICE_NAME'
         required: true
@@ -44,18 +50,18 @@ on:
 
 jobs:
   build:
+    # 仅允许仓库所有者本人触发，防止 fork/协作者误消耗 Actions 额度。
+    # 如果你希望组织内协作者也能运行，可删除或放宽此条件。
     if: github.event.repository.owner.id == github.event.sender.id
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
 
-    
-    # You might want to Checkout your repo first, but not mandatory
     - name: Check Out
       uses: actions/checkout@v4
 
-    # Cleanup The Actions Workspace Using Custom Composite Run Actions
+    # 清理 Actions 工作区，释放磁盘空间
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
 
@@ -68,7 +74,8 @@ jobs:
 
     - name: Prepare the build environment
       run: |
-        sudo apt install git aria2 -y
+        sudo apt-get update
+        sudo apt-get install -y git aria2
         git clone https://gitlab.com/OrangeFox/misc/scripts
         cd scripts
         sudo bash setup/android_build_env.sh
@@ -92,38 +99,35 @@ jobs:
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
     - name: Clone common tree
+      # 可选输入未填写时是空字符串，不是 null，必须用 != '' 判断
       if: |
-        github.event.inputs.COMMON_TREE_URL != null
-        && github.event.inputs.COMMON_PATH != null
+        github.event.inputs.COMMON_TREE_URL != '' &&
+        github.event.inputs.COMMON_PATH != ''
       run: |
         cd ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-        git clone ${{ github.event.inputs.COMMON_TREE_URL }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.COMMON_PATH }}
+        git clone ${{ github.event.inputs.COMMON_TREE_URL }} -b ${{ github.event.inputs.COMMON_TREE_BRANCH }} ./${{ github.event.inputs.COMMON_PATH }}
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
     - name: Set Swap Space
       uses: pierotofy/set-swap-space@master
       with:
         swap-size-gb: 12
-        
-#   - name: install py-is-py2
-#     run: sudo apt-get install python-is-python2
 
-    - name: Fix Python 3 Syntax for roomservice
-      working-directory: ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-      run: |
-        sed -i 's/except IOError, ES.ParseError:/except (IOError, ES.ParseError):/' build/tools/roomservice.py
-        2to3 -w -n build/tools/check_radio_versions.py || true
+    - name: Install python-is-python2
+      # Ubuntu 22.04 仍提供该包；若改用 24.04，需要手动安装 Python 2 或移除本步骤
+      run: sudo apt-get install -y python-is-python2
 
     - name: Building recovery
       run: |
         cd ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
-        set +e
         source build/envsetup.sh
         export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1
         export ALLOW_MISSING_DEPENDENCIES=true
-        set -e
-        lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && mka adbd ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
+        lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng
+        make clean
+        mka adbd ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
       working-directory: ${{ steps.pwd.outputs.workspace-folder }}
+      continue-on-error: true
 
     - name: Check the output directory before uploading
       run: |
@@ -137,6 +141,8 @@ jobs:
         files: |
           ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.img
           ${{ steps.pwd.outputs.workspace-folder }}/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/*.zip
+        # 没有匹配到产物时直接失败，避免静默创建空 Release
+        fail_on_unmatched_files: true
         name: ${{ github.event.inputs.DEVICE_NAME }}-${{ github.run_id }}
         tag_name: ${{ github.run_id }}
         body: |
