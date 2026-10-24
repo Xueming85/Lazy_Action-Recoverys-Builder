@@ -45,7 +45,7 @@ on:
 jobs:
   build:
     if: github.event.repository.owner.id == github.event.sender.id
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
@@ -105,8 +105,8 @@ jobs:
       with:
         swap-size-gb: 12
         
-    - name: install py-is-py2
-      run: sudo apt-get install python-is-python2
+#    - name: install py-is-py2
+#      run: sudo apt-get install python-is-python2
 
     - name: Building recovery
       run: |
