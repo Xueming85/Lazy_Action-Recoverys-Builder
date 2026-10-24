@@ -113,9 +113,17 @@ jobs:
       with:
         swap-size-gb: 12
 
-    - name: Install python-is-python2
-      # Ubuntu 22.04 仍提供该包；若改用 24.04，需要手动安装 Python 2 或移除本步骤
-      run: sudo apt-get install -y python-is-python2
+    - name: Install Python 2.7 for legacy build scripts
+      # ubuntu-22.04 已不再提供 python-is-python2 包，
+      # 改为直接安装 python2.7 并手动创建 python -> python2.7 的符号链接。
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python2.7
+        sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+        curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
+        sudo python2.7 get-pip.py
+        python --version
+        pip --version
 
     - name: Building recovery
       run: |
